@@ -1,0 +1,64 @@
+version: "3.0"
+services:
+  api:
+    image: api:latest
+    container_name: api
+    build:
+      context: api/
+      dockerfile: Dockerfile
+    ports:
+      - "3333:3333"
+    volumes:
+      - ./api/db.json:/mnt/api/db.json
+
+  cadvisor:
+    image: "gcr.io/cadvisor/cadvisor:v0.44.1-test"
+    container_name: cadvisor
+    ports:
+      - 8080:8080
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:rw
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    depends_on:
+      - api
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - 9090:9090
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+
+  locust:
+    image: locustio/locust
+    ports:
+      - "8089:8089"
+    volumes:
+      - ./load_tests/:/mnt/locust
+    command: -f /mnt/locust/locustfile.py
+    depends_on:
+      - api
+
+  locust-metrics-exporter:
+    image: containersol/locust_exporter
+    ports:
+      - "9646:9646"
+    environment:
+      - LOCUST_EXPORTER_URI=http://locust:8089
+    depends_on:
+      - locust
+
+  fp-proxy:
+    image: fiberplane/proxy:v1
+    container_name: fp-proxy
+    volumes:
+      - ./data_sources.yaml:/app/data_sources.yaml
+    command:
+      - --auth-token=${TOKEN:?err}
+    depends_on:
+      - prometheus

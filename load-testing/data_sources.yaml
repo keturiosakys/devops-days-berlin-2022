@@ -1,0 +1,3 @@
+Load-testing Prometheus:
+  type: prometheus
+  url: http://prometheus:9090
